@@ -58,13 +58,17 @@ input,select{width:100%;padding:10px 12px;border:1px solid #c5cedd;border-radius
 <div id="toast" role="status"></div>
 
 <script>
-/* ============ DATA LAYER (localStorage – demo) ============
-   หมายเหตุ: ตอนนี้เก็บข้อมูลในเบราว์เซอร์เครื่องเดียว
-   ถ้าจะใช้หลายเครื่องจริง ให้แทนที่ load()/save() ด้วยการเรียก API/ฐานข้อมูล (Firebase, Supabase ฯลฯ) */
-const KEY='checkin_db_v1';
-const load=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{users:{},rooms:{},me:null}}catch(e){return{users:{},rooms:{},me:null}}};
-const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
-let db=load();
+/* ============ DATA LAYER (Streamlit Bridge) ============ */
+let db = window.parent.STREAMLIT_DB || {users:{}, rooms:{}, me:null};
+
+const load = () => {
+  return window.parent.STREAMLIT_DB || {users:{}, rooms:{}, me:null};
+};
+
+const save = () => {
+  window.parent.postMessage({type: 'SAVE_DB', db: db}, '*');
+};
+
 let S={view:db.me?'lobby':'auth',tab:'home',code:null};
 
 /* ============ HELPERS ============ */
@@ -72,7 +76,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const dayKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const fmtDay=k=>{const[y,m,d]=k.split('-');return `${d}/${m}/${+y+543}`};   // พ.ศ.
+const fmtDay=k=>{const[y,m,d]=k.split('-');return `${d}/${m}/${+y+543}`};
 const fmtTime=t=>{const d=new Date(t);return `${pad(d.getHours())}:${pad(d.getMinutes())}`};
 const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3200)};
 const room=()=>db.rooms[S.code];
@@ -86,16 +90,18 @@ const getPos=()=>new Promise((res,rej)=>{if(!navigator.geolocation)return rej({m
 
 /* ============ ACTIONS ============ */
 function login(){
+  db = load();
   const n=$('#n').value.trim(),e=$('#e').value.trim().toLowerCase();
   if(!n||!/^\S+@\S+\.\S+$/.test(e))return toast('กรอกชื่อและอีเมลให้ถูกต้อง');
   db.users[e]={name:n,email:e};db.me=e;save();S.view='lobby';render();
 }
-function logout(){db.me=null;save();S.view='auth';render()}
+function logout(){db=load();db.me=null;save();S.view='auth';render()}
 async function useHere(){
   try{const c=await getPos();$('#lat').value=c.latitude.toFixed(6);$('#lng').value=c.longitude.toFixed(6);toast('ใช้ตำแหน่งปัจจุบันแล้ว')}
   catch(e){toast('อ่านตำแหน่งไม่ได้: ต้องอนุญาตการเข้าถึงตำแหน่ง และเปิดผ่าน https หรือ localhost')}
 }
 function createRoom(){
+  db = load();
   const g=id=>$('#'+id).value.trim();
   const r={name:g('rn'),place:g('rp'),lat:parseFloat(g('lat')),lng:parseFloat(g('lng')),radius:+g('rad')||100,start:g('rs')||'09:00',grace:+g('rg')||0,
     host:db.me,members:[db.me],joined:{[db.me]:dayKey(new Date())},checkins:[],test:false};
@@ -104,6 +110,7 @@ function createRoom(){
   r.code=genCode();db.rooms[r.code]=r;save();S.code=r.code;S.view='room';S.tab='home';render();toast('สร้างห้องแล้ว รหัสห้อง '+r.code);
 }
 function joinRoom(){
+  db = load();
   const c=$('#jc').value.trim().toUpperCase(),r=db.rooms[c];
   if(!r)return toast('ไม่พบรหัสห้องนี้');
   if(r.kicked?.includes(db.me))return toast('คุณถูกนำออกจากห้องนี้แล้ว');
@@ -112,6 +119,7 @@ function joinRoom(){
 }
 function openRoom(c){S.code=c;S.view='room';S.tab='home';render()}
 async function checkin(){
+  db = load();
   const r=room(),t=dayKey(new Date());
   if(r.checkins.some(c=>c.email===db.me&&c.day===t))return toast('วันนี้เช็คอินแล้ว');
   $('#cb').disabled=true;$('#cb').textContent='กำลังตรวจตำแหน่ง…';
@@ -124,17 +132,19 @@ async function checkin(){
   render();
 }
 function saveSettings(){
+  db = load();
   const r=room(),g=id=>$('#'+id).value.trim();
   if(!g('rn')||!g('rp'))return toast('ชื่อและสถานที่ห้ามว่าง');
   Object.assign(r,{name:g('rn'),place:g('rp'),lat:parseFloat(g('lat')),lng:parseFloat(g('lng')),radius:+g('rad')||100,start:g('rs')||'09:00',grace:+g('rg')||0,test:$('#tst').checked});
   save();toast('บันทึกการตั้งค่าแล้ว');render();
 }
 function kick(e){
+  db = load();
   if(!confirm('นำ '+name(e)+' ออกจากห้อง?'))return;
   const r=room();r.members=r.members.filter(m=>m!==e);(r.kicked=r.kicked||[]).push(e);save();render();
 }
-function leave(){const r=room();r.members=r.members.filter(m=>m!==db.me);save();S.view='lobby';render()}
-function delRoom(){if(!confirm('ลบห้องนี้ถาวร?'))return;delete db.rooms[S.code];save();S.view='lobby';render()}
+function leave(){db = load();const r=room();r.members=r.members.filter(m=>m!==db.me);save();S.view='lobby';render()}
+function delRoom(){db = load();if(!confirm('ลบห้องนี้ถาวร?'))return;delete db.rooms[S.code];save();S.view='lobby';render()}
 function copyCode(){navigator.clipboard?.writeText(S.code);toast('คัดลอกรหัสห้องแล้ว')}
 
 /* ============ VIEWS ============ */
@@ -154,9 +164,10 @@ function vAuth(){return `<div class="auth"><div class="card">
   <label for="n">ชื่อ</label><input id="n" autocomplete="name">
   <label for="e">อีเมล</label><input id="e" type="email" autocomplete="email" placeholder="you@gmail.com">
   <div style="margin-top:20px"><button class="btn" style="width:100%" onclick="login()">เข้าสู่ระบบ</button></div>
-  <p class="hint">เดโมนี้ใช้อีเมลระบุตัวตนเท่านั้น การล็อกอิน Google จริงต้องเพิ่ม Google OAuth ฝั่งเซิร์ฟเวอร์</p></div></div>`}
+  <p class="hint">ระบบกลางทำงานร่วมกันผ่าน Streamlit</p></div></div>`}
 
 function vLobby(){
+  db = load();
   const mine=Object.values(db.rooms).filter(r=>r.members.includes(db.me));
   return `<div class="hero"><div class="wrap"><div class="top"><span>สวัสดี ${esc(name(db.me))} (${esc(db.me)})</span><button class="btn sm" onclick="logout()">ออกจากระบบ</button></div>
   <h1>ห้องของคุณ</h1><div class="meta">สร้างห้องใหม่ หรือใส่รหัสห้องเพื่อเข้าร่วม</div></div></div>
@@ -179,6 +190,7 @@ function myHistory(r){
   return rows.sort((a,b)=>b.day.localeCompare(a.day));
 }
 function vHome(r){
+  db = load();
   const t=dayKey(new Date()),done=r.checkins.find(c=>c.email===db.me&&c.day===t),h=myHistory(r);
   return `<div class="grid"><div class="card">
    <div class="clock" id="clk"></div><div class="date" id="dt"></div>
@@ -188,6 +200,7 @@ function vHome(r){
    ${h.length?`<table><tr><th>วันที่</th><th>เวลา</th><th>ผลลัพธ์</th></tr>${h.map(x=>`<tr><td>${fmtDay(x.day)}</td><td>${x.time}</td><td>${pill[x.st]}</td></tr>`).join('')}</table>`:'<div class="empty">ยังไม่มีประวัติ กดเช็คอินเพื่อเริ่มต้น</div>'}</div></div>`}
 
 function vMembers(r){
+  db = load();
   const t=dayKey(new Date());
   return `<div class="card"><h3 style="margin-bottom:8px">สมาชิกวันนี้ (${fmtDay(t)})</h3><div style="overflow-x:auto"><table><tr><th>ชื่อ</th><th>อีเมล</th><th>เวลา</th><th>สถานะ</th><th></th></tr>
   ${r.members.map(e=>{const c=r.checkins.find(c=>c.email===e&&c.day===t);
@@ -200,6 +213,7 @@ function vSettings(r){return `<div class="card" style="max-width:640px"><h3>ต�
   <div style="margin-top:18px;display:flex;gap:10px"><button class="btn" onclick="saveSettings()">บันทึก</button><button class="btn red" onclick="delRoom()">ลบห้อง</button></div></div>`}
 
 function vRoom(){
+  db = load();
   const r=room();
   if(!r||!r.members.includes(db.me)){S.view='lobby';return vLobby()}
   const tabs=[['home','หน้าหลัก'],['members','สมาชิก']].concat(isHost(r)?[['settings','ตั้งค่าห้อง']]:[]);
@@ -210,6 +224,8 @@ function vRoom(){
   <div class="wrap"><main>${S.tab==='members'?vMembers(r):S.tab==='settings'&&isHost(r)?vSettings(r):vHome(r)}</main></div>`}
 
 function render(){
+  db = load();
+  if (db.me && S.view === 'auth') S.view = 'lobby';
   $('#app').innerHTML=S.view==='auth'?vAuth():S.view==='room'?vRoom():vLobby();
   tick();
 }
