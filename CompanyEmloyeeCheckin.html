@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CheckIn Room – เช็คอินพนักงาน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#14213d;--ink2:#3a4a68;--bg:#eef1f6;--card:#fff;--line:#dde3ed;--ok:#1f9d6a;--okbg:#e2f5ec;--late:#c77d0a;--latebg:#fdf0d8;--bad:#d6404a;--badbg:#fde6e8;--acc:#2f5bea}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:Sarabun,"Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5}
+h1,h2,h3,.disp{font-family:Prompt,"Noto Sans Thai",sans-serif;margin:0}
+button,input,select{font:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.hero{background:var(--ink);color:#fff;padding:28px 0 0}
+.hero h1{font-size:clamp(28px,5vw,44px);font-weight:700;letter-spacing:-.5px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:8px 0 22px;color:#b9c4dc;font-size:15px}
+.code{background:#ffffff1c;border:1px dashed #ffffff66;color:#fff;border-radius:8px;padding:2px 10px;font-family:Prompt;letter-spacing:2px;cursor:pointer}
+.tabs{display:flex;gap:4px}
+.tab{background:none;border:0;color:#b9c4dc;padding:12px 22px;border-radius:10px 10px 0 0;cursor:pointer;font-weight:500}
+.tab.on{background:var(--bg);color:var(--ink);font-weight:600}
+.tab:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+main{padding:24px 0 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.clock{font-family:Prompt;font-size:48px;font-weight:600;line-height:1.1}
+.date{color:var(--ink2);margin-bottom:18px}
+.cbtn{width:100%;border:0;border-radius:20px;padding:30px 10px;background:var(--acc);color:#fff;font-family:Prompt;font-size:30px;font-weight:600;cursor:pointer;box-shadow:0 8px 0 #1e3fae;transition:transform .08s,box-shadow .08s}
+.cbtn:active{transform:translateY(6px);box-shadow:0 2px 0 #1e3fae}
+.cbtn:disabled{background:#9aa6c2;box-shadow:0 8px 0 #7b88a8;cursor:not-allowed}
+.hint{margin-top:22px;font-size:14px;color:var(--ink2)}
+.pill{display:inline-block;border-radius:99px;padding:2px 12px;font-size:14px;font-weight:600}
+.ok{background:var(--okbg);color:var(--ok)}.late{background:var(--latebg);color:var(--late)}.bad{background:var(--badbg);color:var(--bad)}.mute{background:#e9edf4;color:var(--ink2)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:var(--ink2);font-size:14px;padding:10px 12px;border-bottom:2px solid var(--line)}
+td{padding:12px;border-bottom:1px solid var(--line)}
+.empty{padding:28px;text-align:center;color:var(--ink2)}
+.btn{border:0;border-radius:10px;padding:10px 18px;background:var(--ink);color:#fff;font-weight:600;cursor:pointer}
+.btn.sec{background:#e9edf4;color:var(--ink)}.btn.red{background:var(--bad)}.btn.sm{padding:5px 12px;font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 4px}
+input,select{width:100%;padding:10px 12px;border:1px solid #c5cedd;border-radius:10px;background:#fff}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.auth{max-width:440px;margin:8vh auto;padding:0 20px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:820px){.two,.row{grid-template-columns:1fr}}
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 22px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+.top{display:flex;justify-content:space-between;align-items:center;padding:14px 0;color:#b9c4dc;font-size:14px;gap:10px}
+.top .btn{background:#ffffff1c}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status"></div>
+
+<script>
+/* ============ DATA LAYER (localStorage – demo) ============
+   หมายเหตุ: ตอนนี้เก็บข้อมูลในเบราว์เซอร์เครื่องเดียว
+   ถ้าจะใช้หลายเครื่องจริง ให้แทนที่ load()/save() ด้วยการเรียก API/ฐานข้อมูล (Firebase, Supabase ฯลฯ) */
+const KEY='checkin_db_v1';
+const load=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{users:{},rooms:{},me:null}}catch(e){return{users:{},rooms:{},me:null}}};
+const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+let db=load();
+let S={view:db.me?'lobby':'auth',tab:'home',code:null};
+
+/* ============ HELPERS ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const dayKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fmtDay=k=>{const[y,m,d]=k.split('-');return `${d}/${m}/${+y+543}`};   // พ.ศ.
+const fmtTime=t=>{const d=new Date(t);return `${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3200)};
+const room=()=>db.rooms[S.code];
+const isHost=r=>r.host===db.me;
+const name=e=>db.users[e]?.name||e;
+function dist(a,b,c,d){const R=6371000,r=x=>x*Math.PI/180,dl=r(c-a),dn=r(d-b);const h=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+function genCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s;do{s=Array.from({length:6},()=>c[Math.floor(Math.random()*c.length)]).join('')}while(db.rooms[s]);return s}
+function statusOf(r,ts){const d=new Date(ts),[h,m]=r.start.split(':').map(Number);const lim=h*60+m+(+r.grace||0);return d.getHours()*60+d.getMinutes()>lim?'late':'ok'}
+const pill={ok:'<span class="pill ok">✅ เช็คอินแล้ว</span>',late:'<span class="pill late">⏳ สาย</span>',bad:'<span class="pill bad">❌ ไม่ได้เช็คอิน</span>',none:'<span class="pill mute">ยังไม่เช็คอิน</span>'};
+const getPos=()=>new Promise((res,rej)=>{if(!navigator.geolocation)return rej({message:'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง'});navigator.geolocation.getCurrentPosition(p=>res(p.coords),e=>rej(e),{enableHighAccuracy:true,timeout:12000})});
+
+/* ============ ACTIONS ============ */
+function login(){
+  const n=$('#n').value.trim(),e=$('#e').value.trim().toLowerCase();
+  if(!n||!/^\S+@\S+\.\S+$/.test(e))return toast('กรอกชื่อและอีเมลให้ถูกต้อง');
+  db.users[e]={name:n,email:e};db.me=e;save();S.view='lobby';render();
+}
+function logout(){db.me=null;save();S.view='auth';render()}
+async function useHere(){
+  try{const c=await getPos();$('#lat').value=c.latitude.toFixed(6);$('#lng').value=c.longitude.toFixed(6);toast('ใช้ตำแหน่งปัจจุบันแล้ว')}
+  catch(e){toast('อ่านตำแหน่งไม่ได้: ต้องอนุญาตการเข้าถึงตำแหน่ง และเปิดผ่าน https หรือ localhost')}
+}
+function createRoom(){
+  const g=id=>$('#'+id).value.trim();
+  const r={name:g('rn'),place:g('rp'),lat:parseFloat(g('lat')),lng:parseFloat(g('lng')),radius:+g('rad')||100,start:g('rs')||'09:00',grace:+g('rg')||0,
+    host:db.me,members:[db.me],joined:{[db.me]:dayKey(new Date())},checkins:[],test:false};
+  if(!r.name||!r.place)return toast('กรอกชื่อบริษัทและชื่อสถานที่');
+  if(isNaN(r.lat)||isNaN(r.lng))return toast('ระบุพิกัด หรือกด “ใช้ตำแหน่งปัจจุบัน”');
+  r.code=genCode();db.rooms[r.code]=r;save();S.code=r.code;S.view='room';S.tab='home';render();toast('สร้างห้องแล้ว รหัสห้อง '+r.code);
+}
+function joinRoom(){
+  const c=$('#jc').value.trim().toUpperCase(),r=db.rooms[c];
+  if(!r)return toast('ไม่พบรหัสห้องนี้');
+  if(r.kicked?.includes(db.me))return toast('คุณถูกนำออกจากห้องนี้แล้ว');
+  if(!r.members.includes(db.me)){r.members.push(db.me);r.joined[db.me]=dayKey(new Date());save()}
+  S.code=c;S.view='room';S.tab='home';render();
+}
+function openRoom(c){S.code=c;S.view='room';S.tab='home';render()}
+async function checkin(){
+  const r=room(),t=dayKey(new Date());
+  if(r.checkins.some(c=>c.email===db.me&&c.day===t))return toast('วันนี้เช็คอินแล้ว');
+  $('#cb').disabled=true;$('#cb').textContent='กำลังตรวจตำแหน่ง…';
+  try{
+    const p=await getPos(),d=dist(p.latitude,p.longitude,r.lat,r.lng);
+    if(d>r.radius&&!r.test){toast(`คุณอยู่ห่างจาก “${r.place}” ${Math.round(d)} ม. (ต้องไม่เกิน ${r.radius} ม.)`);return render()}
+    const ts=Date.now();r.checkins.push({email:db.me,day:t,ts,status:statusOf(r,ts),dist:Math.round(d)});save();
+    toast('เช็คอินสำเร็จ');
+  }catch(e){toast('อ่านตำแหน่งไม่ได้: โปรดอนุญาตการเข้าถึงตำแหน่ง')}
+  render();
+}
+function saveSettings(){
+  const r=room(),g=id=>$('#'+id).value.trim();
+  if(!g('rn')||!g('rp'))return toast('ชื่อและสถานที่ห้ามว่าง');
+  Object.assign(r,{name:g('rn'),place:g('rp'),lat:parseFloat(g('lat')),lng:parseFloat(g('lng')),radius:+g('rad')||100,start:g('rs')||'09:00',grace:+g('rg')||0,test:$('#tst').checked});
+  save();toast('บันทึกการตั้งค่าแล้ว');render();
+}
+function kick(e){
+  if(!confirm('นำ '+name(e)+' ออกจากห้อง?'))return;
+  const r=room();r.members=r.members.filter(m=>m!==e);(r.kicked=r.kicked||[]).push(e);save();render();
+}
+function leave(){const r=room();r.members=r.members.filter(m=>m!==db.me);save();S.view='lobby';render()}
+function delRoom(){if(!confirm('ลบห้องนี้ถาวร?'))return;delete db.rooms[S.code];save();S.view='lobby';render()}
+function copyCode(){navigator.clipboard?.writeText(S.code);toast('คัดลอกรหัสห้องแล้ว')}
+
+/* ============ VIEWS ============ */
+function roomForm(r){
+  r=r||{name:'',place:'',lat:'',lng:'',radius:100,start:'09:00',grace:15};
+  return `<label for="rn">ชื่อบริษัท / ห้อง</label><input id="rn" value="${esc(r.name)}" placeholder="เช่น บริษัท ตัวอย่าง จำกัด">
+  <label for="rp">ชื่อสถานที่</label><input id="rp" value="${esc(r.place)}" placeholder="เช่น สำนักงานใหญ่ สีลม">
+  <div class="row"><div><label for="lat">ละติจูด</label><input id="lat" value="${r.lat}" inputmode="decimal"></div>
+  <div><label for="lng">ลองจิจูด</label><input id="lng" value="${r.lng}" inputmode="decimal"></div></div>
+  <div style="margin-top:10px"><button class="btn sec sm" type="button" onclick="useHere()">📍 ใช้ตำแหน่งปัจจุบัน</button></div>
+  <div class="row"><div><label for="rad">รัศมีที่เช็คอินได้ (เมตร)</label><input id="rad" type="number" min="10" value="${r.radius}"></div>
+  <div><label for="rs">เวลาเข้างาน</label><input id="rs" type="time" value="${r.start}"></div></div>
+  <label for="rg">ผ่อนผันก่อนนับว่าสาย (นาที)</label><input id="rg" type="number" min="0" value="${r.grace}">`;
+}
+function vAuth(){return `<div class="auth"><div class="card">
+  <h1 style="font-size:30px">CheckIn Room</h1><p style="color:var(--ink2)">เช็คอินเข้างานตามพื้นที่ที่บริษัทกำหนด</p>
+  <label for="n">ชื่อ</label><input id="n" autocomplete="name">
+  <label for="e">อีเมล</label><input id="e" type="email" autocomplete="email" placeholder="you@gmail.com">
+  <div style="margin-top:20px"><button class="btn" style="width:100%" onclick="login()">เข้าสู่ระบบ</button></div>
+  <p class="hint">เดโมนี้ใช้อีเมลระบุตัวตนเท่านั้น การล็อกอิน Google จริงต้องเพิ่ม Google OAuth ฝั่งเซิร์ฟเวอร์</p></div></div>`}
+
+function vLobby(){
+  const mine=Object.values(db.rooms).filter(r=>r.members.includes(db.me));
+  return `<div class="hero"><div class="wrap"><div class="top"><span>สวัสดี ${esc(name(db.me))} (${esc(db.me)})</span><button class="btn sm" onclick="logout()">ออกจากระบบ</button></div>
+  <h1>ห้องของคุณ</h1><div class="meta">สร้างห้องใหม่ หรือใส่รหัสห้องเพื่อเข้าร่วม</div></div></div>
+  <div class="wrap"><main><div class="two">
+   <div class="card"><h3>เข้าร่วมห้อง</h3><label for="jc">รหัสห้อง</label><input id="jc" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-family:Prompt" placeholder="ABC123">
+    <div style="margin-top:16px"><button class="btn" onclick="joinRoom()">เข้าร่วม</button></div>
+    <h3 style="margin-top:30px">ห้องที่เข้าร่วมอยู่</h3>
+    ${mine.length?mine.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)"><div><b>${esc(r.name)}</b><br><span style="color:var(--ink2);font-size:14px">${esc(r.place)} · ${r.code}${isHost(r)?' · คุณเป็น Host':''}</span></div><button class="btn sm" onclick="openRoom('${r.code}')">เปิด</button></div>`).join(''):'<div class="empty">ยังไม่มีห้อง</div>'}
+   </div>
+   <div class="card"><h3>สร้างห้องบริษัท</h3>${roomForm()}<div style="margin-top:18px"><button class="btn" onclick="createRoom()">สร้างห้อง</button></div></div>
+  </div></main></div>`}
+
+function myHistory(r){
+  const rows=r.checkins.filter(c=>c.email===db.me).map(c=>({day:c.day,time:fmtTime(c.ts),st:c.status}));
+  const have=new Set(rows.map(x=>x.day)),t=dayKey(new Date());
+  const [y,m,d]=r.joined[db.me].split('-').map(Number);
+  for(let x=new Date(y,m-1,d);dayKey(x)<t;x.setDate(x.getDate()+1)){
+    const k=dayKey(x);if(!have.has(k))rows.push({day:k,time:'–',st:'bad'});
+  }
+  return rows.sort((a,b)=>b.day.localeCompare(a.day));
+}
+function vHome(r){
+  const t=dayKey(new Date()),done=r.checkins.find(c=>c.email===db.me&&c.day===t),h=myHistory(r);
+  return `<div class="grid"><div class="card">
+   <div class="clock" id="clk"></div><div class="date" id="dt"></div>
+   <button class="cbtn" id="cb" onclick="checkin()" ${done?'disabled':''}>${done?'เช็คอินแล้ว '+fmtTime(done.ts):'Check-in'}</button>
+   <p class="hint">เข้างาน ${r.start} น. (สายเมื่อเกิน ${r.grace} นาที)<br>ต้องอยู่ภายใน ${r.radius} ม. จาก “${esc(r.place)}”${r.test?'<br><b>⚠ โหมดทดสอบ: ข้ามการตรวจตำแหน่ง</b>':''}</p></div>
+   <div class="card"><h3 style="margin-bottom:8px">ประวัติของฉัน</h3>
+   ${h.length?`<table><tr><th>วันที่</th><th>เวลา</th><th>ผลลัพธ์</th></tr>${h.map(x=>`<tr><td>${fmtDay(x.day)}</td><td>${x.time}</td><td>${pill[x.st]}</td></tr>`).join('')}</table>`:'<div class="empty">ยังไม่มีประวัติ กดเช็คอินเพื่อเริ่มต้น</div>'}</div></div>`}
+
+function vMembers(r){
+  const t=dayKey(new Date());
+  return `<div class="card"><h3 style="margin-bottom:8px">สมาชิกวันนี้ (${fmtDay(t)})</h3><div style="overflow-x:auto"><table><tr><th>ชื่อ</th><th>อีเมล</th><th>เวลา</th><th>สถานะ</th><th></th></tr>
+  ${r.members.map(e=>{const c=r.checkins.find(c=>c.email===e&&c.day===t);
+   return `<tr><td><b>${esc(name(e))}</b>${e===r.host?' 👑':''}</td><td>${esc(e)}</td><td>${c?fmtTime(c.ts):'–'}</td><td>${c?pill[c.status]:pill.none}</td>
+   <td>${isHost(r)&&e!==r.host?`<button class="btn red sm" onclick="kick('${esc(e)}')">นำออก</button>`:''}</td></tr>`}).join('')}</table></div>
+  ${isHost(r)?'':'<div style="margin-top:16px"><button class="btn sec sm" onclick="leave()">ออกจากห้อง</button></div>'}</div>`}
+
+function vSettings(r){return `<div class="card" style="max-width:640px"><h3>ตั้งค่าห้อง (Host)</h3>${roomForm(r)}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:500;margin-top:18px"><input id="tst" type="checkbox" style="width:auto" ${r.test?'checked':''}> โหมดทดสอบ: ข้ามการตรวจตำแหน่ง</label>
+  <div style="margin-top:18px;display:flex;gap:10px"><button class="btn" onclick="saveSettings()">บันทึก</button><button class="btn red" onclick="delRoom()">ลบห้อง</button></div></div>`}
+
+function vRoom(){
+  const r=room();
+  if(!r||!r.members.includes(db.me)){S.view='lobby';return vLobby()}
+  const tabs=[['home','หน้าหลัก'],['members','สมาชิก']].concat(isHost(r)?[['settings','ตั้งค่าห้อง']]:[]);
+  return `<div class="hero"><div class="wrap"><div class="top"><button class="btn sm" onclick="S.view='lobby';render()">← ห้องทั้งหมด</button><span>${esc(name(db.me))}</span></div>
+  <h1>${esc(r.name)}</h1>
+  <div class="meta"><span>📍 ${esc(r.place)}</span><span>👥 ${r.members.length} คน</span><span>👑 Host: ${esc(name(r.host))}</span><span>รหัสห้อง <button class="code" onclick="copyCode()" title="คัดลอก">${r.code}</button></span></div>
+  <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button class="tab ${S.tab===k?'on':''}" role="tab" onclick="S.tab='${k}';render()">${l}</button>`).join('')}</div></div></div>
+  <div class="wrap"><main>${S.tab==='members'?vMembers(r):S.tab==='settings'&&isHost(r)?vSettings(r):vHome(r)}</main></div>`}
+
+function render(){
+  $('#app').innerHTML=S.view==='auth'?vAuth():S.view==='room'?vRoom():vLobby();
+  tick();
+}
+function tick(){
+  const c=$('#clk');if(!c)return;const n=new Date();
+  c.textContent=`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+  $('#dt').textContent=fmtDay(dayKey(n));
+}
+setInterval(tick,1000);
+render();
+</script>
+</body>
+</html>
